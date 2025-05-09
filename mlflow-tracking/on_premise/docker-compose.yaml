@@ -1,0 +1,61 @@
+version: '3.9'
+
+networks:
+  mlflow-network:
+    driver: bridge
+
+services:
+  db:
+    image: mysql
+    container_name: mlflow-db
+    environment:
+      TZ: UTC
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: mlflowruns
+      MYSQL_USER: mlflow
+      MYSQL_PASSWORD: mlflow
+    ports:
+      - "3316:3306"
+    networks:
+      - mlflow-network
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  mlflow:
+    container_name: mlflow-server
+    build: .
+    ports:
+      - "5010:5000"
+    depends_on:
+      db:
+        condition: service_started
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri mysql+pymysql://'mlflow':'mlflow'@db:3306/mlflowruns
+      --default-artifact-root /app/mlartifacts
+      --gunicorn-opts "--log-level debug"
+      --serve-artifacts
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      - XAI_API_KEY=${XAI_API_KEY}
+      - XAI_DEPLOYMENT_NAME=${XAI_DEPLOYMENT_NAME}
+      - XAI_ENDPOINT=${XAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_DEPLOYMENT_NAME=${AZURE_OPENAI_DEPLOYMENT_NAME}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY}
+    networks:
+      - mlflow-network
+    volumes:
+      - ./mlartifacts:/app/mlartifacts
+      - ./agent:/app/agent
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  mysql_data:
